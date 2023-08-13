@@ -65,7 +65,7 @@ module qqspi #(
 
   genvar i;
   generate
-    for (i = 0; i < 4; i = i + 1) begin
+    for (i = 0; i < 4; i = i + 1) begin : gen_sio_assign
       assign sio[i] = sio_oe[i] ? sio_out[i] : 1'bz;
     end
   endgenerate

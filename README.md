@@ -26,7 +26,7 @@ alt="Harris MultiCycle RISC-V rv32ima"
 <figcaption>KianV Multicycle rv32ima CPU</figcaption>
 </figure>
 <figure>
-<img src="./tangnano20k_linux.png" width="80%" height="80%"
+<img src="./qmtech.png" width="80%" height="80%"
 alt="Harris MultiCycle RISC-V rv32ima"
 <figcaption>KianV Multicycle rv32ima CPU</figcaption>
 </figure>

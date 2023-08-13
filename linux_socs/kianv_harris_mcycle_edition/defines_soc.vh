@@ -19,8 +19,14 @@
 `ifndef KIANV_SOC
 `define KIANV_SOC
 
+`define USE_PLL // 75MHz PLL
 `define CPU_FREQ_REG_ADDR 32'h 30_000_010
-`define BAUDRATE 2_000_000 // 115200
+
+`ifdef USE_PLL
+`define BAUDRATE 3_000_000
+`else
+`define BAUDRATE 2_000_000
+`endif
 
 `define UART_TX_ADDR 32'h 10_000_000
 `define UART_RX_ADDR 32'h 10_000_000
@@ -31,25 +37,30 @@
 `define FAKE_MULTIPLIER
 `define LED_ULX3S
 
-`define QUAD_SPI_FLASH_MODE 1'b0 // some boards doesn't work with enabled qspi
+`define QUAD_SPI_FLASH_MODE 1'b0
 
 `define UART_TX
 `define UART_RX
 
 `define SDRAM_MEM_ADDR_START 32'h 80_000_000
-`define SDRAM_SIZE (1024*1024*8)
+`define SDRAM_SIZE (1024*1024*32)
 `define SDRAM_MEM_ADDR_END ((`SDRAM_MEM_ADDR_START) + (`SDRAM_SIZE))
 
-`define SYSTEM_CLK 36_000_000
+`ifdef USE_PLL
+`define SYSTEM_CLK 75_000_000
+`else
+`define SYSTEM_CLK 50_000_000
+`endif
+
 `define SYSTEM_CLK_MHZ (`SYSTEM_CLK / 1_000_000)
 
 `define SPI_NOR_MEM_ADDR_START 32'h 20_000_000
 
 `define SPI_MEMORY_OFFSET (1024*1024)
-`define SPI_NOR_MEM_ADDR_END ((`SPI_NOR_MEM_ADDR_START) + (8*1024*1024))
+`define SPI_NOR_MEM_ADDR_END ((`SPI_NOR_MEM_ADDR_START) + (16*1024*1024))
 
 `define RESET_ADDR (`SPI_NOR_MEM_ADDR_START + `SPI_MEMORY_OFFSET)
 `define FIRMWARE_BRAM ""
-`define BRAM_WORDS (1024*16)
+`define BRAM_WORDS (1024*8)
 
 `endif

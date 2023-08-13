@@ -42,7 +42,7 @@ module tx_uart #(
 
   reg  [15:0] wait_states;
   wire [15:0] CYCLES_PER_SYMBOL;
-  assign CYCLES_PER_SYMBOL = div == 0 ? (SYSTEM_CLK / BAUDRATE) : div;
+  assign CYCLES_PER_SYMBOL = div == 0 ? ((SYSTEM_CLK + (SYSTEM_CLK + (BAUDRATE/2))) / BAUDRATE) : div;
 
 `ifdef SIM
   always @(posedge clk) begin

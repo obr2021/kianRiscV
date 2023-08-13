@@ -103,26 +103,19 @@ module datapath_unit #(
 
   wire [31:0] WD3;
 
-  // https://www.reddit.com/r/GowinFPGA/comments/155jehq/have_i_discovered_a_synthesisrouting_defect_with/
-  // workarround by https://www.reddit.com/user/laiudm/
-  generate
-    genvar i;
-    for (i = 0; i < 2; i = i + 1) begin : gen_register_file
-      register_file #(
-          .REGISTER_DEPTH(RV32E ? 16 : 32),
-          .REGISTER_WIDTH(16)
-      ) register_file_I (
-          .clk(clk),
-          .we (RegWrite),
-          .A1 (Rs1),
-          .A2 (Rs2),
-          .A3 (Rd),
-          .rd1(Rd1[i*16+:16]),
-          .rd2(Rd2[i*16+:16]),
-          .wd (WD3[i*16+:16])
-      );
-    end
-  endgenerate
+  register_file #(
+      .REGISTER_DEPTH(RV32E ? 16 : 32),
+      .STACKADDR(STACKADDR)
+  ) register_file_I (
+      .clk(clk),
+      .we (RegWrite),
+      .A1 (Rs1),
+      .A2 (Rs2),
+      .A3 (Rd),
+      .rd1(Rd1),
+      .rd2(Rd2),
+      .wd (WD3)
+  );
 
   wire [31:0] ImmExt;
   wire [31:0] PC, OldPC;
@@ -199,7 +192,7 @@ module datapath_unit #(
       pc_or_exception_next
   );
 
-  dff #(32, RESET_ADDR) PC_I (
+  dflop #(32, RESET_ADDR) PC_I (
       resetn,
       clk,
       PCWrite,
@@ -207,7 +200,7 @@ module datapath_unit #(
       PC
   );
 
-  dff #(32, `NOP_INSTR) Instr_I (
+  dflop #(32, `NOP_INSTR) Instr_I (
       resetn,
       clk,
       fetched_instr,
@@ -216,7 +209,7 @@ module datapath_unit #(
   );
 
   wire [31:0] amo_intermediate_addr_value;
-  dff #(32) amo_intermediate_addr_I (
+  dflop #(32) amo_intermediate_addr_I (
       .resetn(resetn),
       .clk(clk),
       .d(ALUResult),
@@ -224,7 +217,7 @@ module datapath_unit #(
       .q(amo_intermediate_addr_value)
   );
 
-  dff #(1) amo_load_reserved_state_I (
+  dflop #(1) amo_load_reserved_state_I (
       .resetn(resetn),
       .clk(clk),
       .d(amo_intermediate_data),
@@ -232,7 +225,7 @@ module datapath_unit #(
       .q(amo_load_reserved_state)
   );
 
-  dff #(32, RESET_ADDR) OldPC_I (
+  dflop #(32, RESET_ADDR) OldPC_I (
       resetn,
       clk,
       fetched_instr,
@@ -240,7 +233,7 @@ module datapath_unit #(
       OldPC
   );
 
-  dff #(32) ALUOut_I (
+  dflop #(32) ALUOut_I (
       resetn,
       clk,
       ALUOutWrite,
@@ -255,38 +248,38 @@ module datapath_unit #(
       alu_out_or_amo_scw
   );
 
-  dlatch #(2) ADDR_I (
+  dlatch_my #(2) ADDR_I (
       clk,
       mem_addr[1:0],
       mem_addr_align_latch
   );
 
-  dlatch #(32) A1_I (
+  dlatch_my #(32) A1_I (
       clk,
       Rd1,
       A1
   );
 
-  dlatch #(32) A2_I (
+  dlatch_my #(32) A2_I (
       clk,
       Rd2,
       A2
   );
 
-  // todo: data, csrdata, mulex could be stored in one dlatch
-  dlatch #(32) Data_I (
+  // todo: data, csrdata, mulex could be stored in one dlatch_my
+  dlatch_my #(32) Data_I (
       clk,
       Data,
       DataLatched
   );
 
-  dlatch #(32) CSROut_I (
+  dlatch_my #(32) CSROut_I (
       clk,
       CSRData,
       CSRDataOut
   );
 
-  dlatch #(32) MULExtResultOut_I (
+  dlatch_my #(32) MULExtResultOut_I (
       clk,
       MULExtResult,
       MULExtResultOut
@@ -329,7 +322,7 @@ module datapath_unit #(
       Data_ALUResult_mux
   );
 
-  dff #(32) AMOTmpData_I (
+  dflop #(32) AMOTmpData_I (
       resetn,
       clk,
       amo_tmp_write,

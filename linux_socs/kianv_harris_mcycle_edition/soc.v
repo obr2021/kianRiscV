@@ -22,41 +22,46 @@ module soc (
     input  wire        clk_osc,
     output wire        uart_tx,
     input  wire        uart_rx,
-    output wire [ 5:0] led,
-
-    output wire        flash_sclk,
+    output wire [ 2:0] led,
+    output wire        flash_sclk,  /* todo */
     output wire        flash_csn,
     inout  wire        flash_miso,
     inout  wire        flash_mosi,
-    inout  wire        flash_io2,
-    inout  wire        flash_io3,
-
-    output wire O_sdram_clk,
-    output wire O_sdram_cke,
-    output wire O_sdram_cs_n,            // chip select
-    output wire O_sdram_cas_n,           // columns address select
-    output wire O_sdram_ras_n,           // row address select
-    output wire O_sdram_wen_n,           // write enable
-    inout wire [31:0] IO_sdram_dq,       // 32 bit bidirectional data bus
-    output wire [10:0] O_sdram_addr,     // 11 bit multiplexed address bus
-    output wire [1:0] O_sdram_ba,        // two banks
-    output wire [3:0] O_sdram_dqm       // 32/4
-
+    /*
+        inout  wire        flash_io2,
+        inout  wire        flash_io3,
+  */
+    output wire        sdram_clk,
+    output wire        sdram_cke,
+    output wire [ 1:0] sdram_dqm,
+    output wire [12:0] sdram_addr,  //  A0-A10 row address, A0-A7 column address
+    output wire [ 1:0] sdram_ba,    // bank select A11,A12
+    output wire        sdram_csn,
+    output wire        sdram_wen,
+    output wire        sdram_rasn,
+    output wire        sdram_casn,
+    inout  wire [15:0] sdram_dq
 );
+
+`ifdef USE_PLL
+  wire clk;
+`else
+  wire clk = clk_osc;
+`endif
 
   wire [31:0] PC;
 
-  assign led       = ~PC[18+:5];
-  //assign led       = cpu_mem_wdata[0+:5];
+  assign led = ~PC[8+:3];
 
-
-  wire clk;
   wire locked;
-  Gowin_rPLL pll_I0 (
-      .clkout(clk),  //output clkout
-      .lock(locked),  //output lock
-      .clkin(clk_osc)  //input clkin
+
+`ifdef USE_PLL
+  pll pll_I0 (
+      clk_osc,
+      clk,
+      locked
   );
+`endif
 
   localparam BYTE_ADDRESS_LEN = 32;
   localparam BYTES_PER_BLOCK = 4;
@@ -69,10 +74,16 @@ module soc (
   reg [11:0] rst_cnt = 0;
   wire resetn = &rst_cnt;
 
+`ifdef USE_PLL
   always @(posedge clk) begin
     if (!locked) rst_cnt <= 0;
-    else if (!resetn) rst_cnt <= rst_cnt + 1;
+    else rst_cnt <= rst_cnt + !resetn;
   end
+`else
+  always @(posedge clk) begin
+    rst_cnt <= rst_cnt + !resetn;
+  end
+`endif
 
 
   // cpu
@@ -123,8 +134,6 @@ module soc (
   assign spi_nor_mem_valid = !spi_nor_mem_ready && cpu_mem_valid &&
            (cpu_mem_addr >= `SPI_NOR_MEM_ADDR_START && cpu_mem_addr < `SPI_NOR_MEM_ADDR_END) && !wr;
 
-  wire spi_state;
-
   qqspi #(
       .QUAD_MODE(`QUAD_SPI_FLASH_MODE),
       .CEN_NPOL(1'b0),
@@ -141,8 +150,8 @@ module soc (
       .sclk        (flash_sclk),
       .sio0_si_mosi(flash_mosi),
       .sio1_so_miso(flash_miso),
-      .sio2        (flash_io2),
-      .sio3        (flash_io3),
+      .sio2        (  /*flash_io2*/),
+      .sio3        (  /*flash_io3*/),
       .cs          (),
 
       .clk   (clk),
@@ -223,40 +232,39 @@ module soc (
   wire mem_sdram_valid;
   wire mem_sdram_ready;
 
-  wire [29:0] word_aligned_addr = {cpu_mem_addr[31:2]};
-
   wire is_sdram = (cpu_mem_addr >= `SDRAM_MEM_ADDR_START && cpu_mem_addr < `SDRAM_MEM_ADDR_END);
   assign mem_sdram_valid = !mem_sdram_ready && cpu_mem_valid && is_sdram;
 
-  m12l64322a_ctrl #(
+  mt48lc16m16a2_ctrl #(
       .SDRAM_CLK_FREQ(`SYSTEM_CLK_MHZ / 1_000_000)
   ) sdram_i (
       .clk   (clk),
       .resetn(resetn),
-      .addr  (word_aligned_addr[20:0]),
+      .addr  (cpu_mem_addr),
       .din   (cpu_mem_wdata),
       .dout  (mem_sdram_rdata),
       .wmask (cpu_mem_wstrb),
       .valid (mem_sdram_valid),
       .ready (mem_sdram_ready),
 
-      .sdram_clk (O_sdram_clk),
-      .sdram_cke (O_sdram_cke),
-      .sdram_dqm (O_sdram_dqm),
-      .sdram_addr(O_sdram_addr),
-      .sdram_ba  (O_sdram_ba),
-      .sdram_csn (O_sdram_cs_n),
-      .sdram_wen (O_sdram_wen_n),
-      .sdram_rasn(O_sdram_ras_n),
-      .sdram_casn(O_sdram_cas_n),
-      .sdram_dq  (IO_sdram_dq)
+      .sdram_clk (sdram_clk),
+      .sdram_cke (sdram_cke),
+      .sdram_dqm (sdram_dqm),
+      .sdram_addr(sdram_addr),
+      .sdram_ba  (sdram_ba),
+      .sdram_csn (sdram_csn),
+      .sdram_wen (sdram_wen),
+      .sdram_rasn(sdram_rasn),
+      .sdram_casn(sdram_casn),
+      .sdram_dq  (sdram_dq)
   );
 
   /////////////////////////////////////////////////////////////////////////////
 
   // BRAM
-  assign bram_valid = !bram_ready && cpu_mem_valid && (cpu_mem_addr < (`BRAM_WORDS << 2));
-  always @(posedge clk) bram_ready <= !resetn ? 0 : bram_valid;
+  wire is_bram = (cpu_mem_addr < (`BRAM_WORDS << 2));
+  assign bram_valid = !bram_ready && cpu_mem_valid && is_bram;
+  always @(posedge clk) bram_ready <= !resetn ? 1'b0 : bram_valid;
 
   bram #(
       .WIDTH        (BRAM_ADDR_WIDTH),
@@ -315,9 +323,8 @@ module soc (
   /////////////////////////////////////////////////////////////////////////////
   wire is_io = (cpu_mem_addr >= 32'h10_000_000 && cpu_mem_addr <= 32'h12_000_000);
   wire unmatched_io = !(cpu_mem_addr == `UART_LSR_ADDR || cpu_mem_addr == `UART_TX_ADDR || cpu_mem_addr == `UART_RX_ADDR || clint_valid);
-  wire is_bram = (cpu_mem_addr[31]);
 
-  wire access_fault = cpu_mem_valid & (unmatched_io || !is_bram || !is_sdram);
+  wire access_fault = cpu_mem_valid & (!is_io || !is_bram || !is_sdram);
 
   reg io_ready;
   reg [31:0] io_rdata;
@@ -326,7 +333,7 @@ module soc (
   always @(*) begin
     io_rdata = 0;
     io_ready = 1'b0;
-    byteswaiting = 0;
+    byteswaiting = 1'b0;
     if (is_io) begin
       if (uart_lsr_rdy) begin
         byteswaiting = {1'b0, !uart_tx_busy, !uart_tx_busy, 1'b0, 3'b0, !(&rx_uart_data)};
